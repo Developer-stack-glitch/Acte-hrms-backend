@@ -125,6 +125,19 @@ const createAsset = async (req, res) => {
             assigned_to: sanitize(data.assigned_to)
         });
 
+        // Send notification to employee if assigned
+        if (data.assigned_to) {
+            const io = req.app.get('socketio');
+            const { sendNotification } = require('../utils/notificationHelper');
+            await sendNotification(io, {
+                user_id: data.assigned_to,
+                type: 'asset',
+                title: 'New Asset Assigned',
+                message: `The asset "${data.name}" has been assigned to you.`,
+                extra_data: { asset_id: id, type: 'asset_assignment' }
+            });
+        }
+
         res.status(201).json({ id, message: 'Asset created successfully' });
     } catch (error) {
         if (error.code === 'ER_DUP_ENTRY') {
@@ -150,36 +163,67 @@ const updateAsset = async (req, res) => {
 
         const sanitize = (val) => (val === '' || val === 'null' || val === undefined) ? null : val;
 
-        const updateData = {
-            name: data.name,
-            category_id: sanitize(data.category_id),
-            serial: data.serial,
-            purchase_date: sanitize(data.purchaseDate),
-            cost: sanitize(data.cost),
-            status: data.status,
-            branch: sanitize(data.branch),
-            specification: sanitize(data.specification),
-            rental_type: sanitize(data.rentalType),
-            vendor: sanitize(data.vendor),
-            warranty_in_month: sanitize(data.warrantyInMonth),
-            remarks: sanitize(data.remarks)
-        };
+        const updateData = {};
 
-        if (req.files) {
-            if (req.files.asset_image) {
-                updateData.asset_image = req.files.asset_image[0].path.replace(/\\/g, '/');
+        // List of all possible fields
+        const fields = [
+            'name', 'category_id', 'serial', 'purchaseDate', 'cost', 'status',
+            'branch', 'specification', 'rentalType', 'vendor', 'warrantyInMonth',
+            'remarks', 'assigned_to'
+        ];
+
+        fields.forEach(f => {
+            if (Object.prototype.hasOwnProperty.call(data, f)) {
+                if (f === 'purchaseDate') {
+                    updateData.purchase_date = sanitize(data[f]);
+                } else if (f === 'warrantyInMonth') {
+                    updateData.warranty_in_month = sanitize(data[f]);
+                } else if (f === 'rentalType') {
+                    updateData.rental_type = sanitize(data[f]);
+                } else if (f === 'category_id' || f === 'cost' || f === 'branch' || f === 'specification' || f === 'vendor' || f === 'remarks' || f === 'assigned_to') {
+                    updateData[f] = sanitize(data[f]);
+                } else {
+                    updateData[f] = data[f];
+                }
             }
-            if (req.files.invoice) {
-                updateData.invoice = req.files.invoice[0].path.replace(/\\/g, '/');
+        });
+
+        // Special handling for file paths if they were uploaded
+        if (data.asset_image) updateData.asset_image = data.asset_image;
+        if (data.invoice) updateData.invoice = data.invoice;
+
+        // Automatic status update based on assignment if status not provided
+        if (Object.prototype.hasOwnProperty.call(updateData, 'assigned_to') && !updateData.status) {
+            if (updateData.assigned_to) {
+                updateData.status = 'Assigned';
+            } else {
+                updateData.status = 'Available';
             }
         }
 
-        if (Object.prototype.hasOwnProperty.call(data, 'assigned_to')) {
-            updateData.assigned_to = sanitize(data.assigned_to);
+        if (Object.keys(updateData).length === 0) {
+            return res.status(400).json({ message: 'No fields to update' });
         }
 
         const affected = await Asset.updateAsset(req.params.id, updateData);
         if (!affected) return res.status(404).json({ message: 'Asset not found' });
+
+        // Send notification to employee if just assigned/re-assigned
+        if (updateData.assigned_to) {
+            const io = req.app.get('socketio');
+            const { sendNotification } = require('../utils/notificationHelper');
+            const assetInfo = await Asset.getAssetById(req.params.id);
+            if (assetInfo) {
+                await sendNotification(io, {
+                    user_id: updateData.assigned_to,
+                    type: 'asset',
+                    title: 'Asset Assigned',
+                    message: `The asset "${assetInfo.name}" has been assigned to you.`,
+                    extra_data: { asset_id: req.params.id, type: 'asset_assignment' }
+                });
+            }
+        }
+
         res.status(200).json({ message: 'Asset updated successfully' });
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -310,10 +354,10 @@ const updateRequestStatus = async (req, res) => {
             const { sendNotification } = require('../utils/notificationHelper');
             await sendNotification(io, {
                 user_id: request.user_id,
-                type: 'info',
+                type: 'asset',
                 title: `Asset Request ${status}`,
                 message: `Your request for ${request.asset_name} has been ${status.toLowerCase()}${rejection_reason ? ': ' + rejection_reason : ''}`,
-                extra_data: { request_id: id, status }
+                extra_data: { request_id: id, status, type: 'asset_status_update' }
             });
         }
 

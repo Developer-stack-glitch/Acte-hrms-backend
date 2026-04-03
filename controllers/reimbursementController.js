@@ -83,10 +83,10 @@ const updateClaimStatus = async (req, res) => {
             const { sendNotification } = require('../utils/notificationHelper');
             await sendNotification(io, {
                 user_id: claim.user_id,
-                type: 'info',
+                type: 'reimbursement',
                 title: `Claim ${status}`,
                 message: `Your reimbursement claim for ₹${claim.amount} has been ${status.toLowerCase()}${comment ? ': ' + comment : ''}`,
-                extra_data: { claim_id: id, status }
+                extra_data: { claim_id: id, status, type: 'reimbursement_status_update' }
             });
         }
 

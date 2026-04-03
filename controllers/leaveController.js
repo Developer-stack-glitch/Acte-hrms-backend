@@ -64,10 +64,10 @@ const updateLeave = async (req, res) => {
             const { sendNotification } = require('../utils/notificationHelper');
             await sendNotification(io, {
                 user_id: employee_id,
-                type: 'info',
+                type: 'leave',
                 title: `Leave ${status}`,
                 message: `Your leave request has been ${status.toLowerCase()}${remarks ? ': ' + remarks : ''}`,
-                extra_data: { leave_id: id, status }
+                extra_data: { leave_id: id, status, type: 'leave_status_update' }
             });
         }
 
