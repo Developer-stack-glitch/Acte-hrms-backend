@@ -152,10 +152,12 @@ class Leave {
         const countParams = [...params];
 
         query += ' ORDER BY l.created_at DESC LIMIT ? OFFSET ?';
-        params.push(parseInt(limit), parseInt(offset));
+        const finalLimit = Number.isFinite(parseInt(limit)) ? parseInt(limit) : 10;
+        const finalOffset = Number.isFinite(parseInt(offset)) ? parseInt(offset) : 0;
+        params.push(finalLimit, finalOffset);
 
-        const [rows] = await pool.execute(query, params);
-        const [countResult] = await pool.execute(countQuery, countParams);
+        const [rows] = await pool.query(query, params);
+        const [countResult] = await pool.query(countQuery, countParams);
 
         // Fetch counts for each status
         const countConditions = ["u.role != 'superadmin'"];
@@ -185,7 +187,7 @@ class Leave {
 
         const countWhere = ' WHERE ' + countConditions.join(' AND ');
 
-        const [allCounts] = await pool.execute(`
+        const [allCounts] = await pool.query(`
             SELECT 
                 COUNT(*) as all_count,
                 SUM(CASE WHEN l.status = 'Approved' THEN 1 ELSE 0 END) as approved_count,

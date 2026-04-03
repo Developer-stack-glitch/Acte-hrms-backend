@@ -95,7 +95,7 @@ const Asset = {
             LEFT JOIN asset_categories c ON a.category_id = c.id
             ${filterClause}
         `;
-        const [countResult] = await pool.execute(countQuery, filterParams);
+        const [countResult] = await pool.query(countQuery, filterParams);
         const total = parseInt(countResult[0].total) || 0;
 
         // Fetch paginated data
@@ -114,8 +114,10 @@ const Asset = {
             ORDER BY a.id DESC
             LIMIT ? OFFSET ?
         `;
-        const dataParams = [...filterParams, String(limit), String(offset)];
-        const [rows] = await pool.execute(dataQuery, dataParams);
+        const finalLimit = Number.isFinite(parseInt(limit)) ? parseInt(limit) : 10;
+        const finalOffset = Number.isFinite(parseInt(offset)) ? parseInt(offset) : 0;
+        const dataParams = [...filterParams, finalLimit, finalOffset];
+        const [rows] = await pool.query(dataQuery, dataParams);
 
         return { data: rows, total, stats };
     },
@@ -386,7 +388,7 @@ const Asset = {
         }
 
         query += ' ORDER BY q.created_at DESC';
-        const [rows] = await pool.execute(query, params);
+        const [rows] = await pool.query(query, params);
         return rows;
     },
 

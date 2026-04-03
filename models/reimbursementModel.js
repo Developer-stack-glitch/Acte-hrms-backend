@@ -98,7 +98,7 @@ const Reimbursement = {
 
         query += ' ORDER BY r.created_at DESC';
 
-        const [rows] = await pool.execute(query, params);
+        const [rows] = await pool.query(query, params);
         return rows;
     },
 

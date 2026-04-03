@@ -65,7 +65,7 @@ const PayrollRun = {
 
         // Get total count and total amount sum
         const statsQuery = `SELECT COUNT(*) as total, SUM(total_amount) as total_sum FROM payroll_runs${whereClause}`;
-        const [statsResult] = await pool.execute(statsQuery, params);
+        const [statsResult] = await pool.query(statsQuery, params);
         const total = statsResult[0].total;
         const totalSum = statsResult[0].total_sum || 0;
 
@@ -75,7 +75,7 @@ const PayrollRun = {
         query += ' LIMIT ? OFFSET ?';
 
         // Add limit and offset to params. Note that LIMIT and OFFSET must be numbers.
-        const [rows] = await pool.execute(query, [...params, Number(limit), Number(offset)]);
+        const [rows] = await pool.query(query, [...params, Number(limit), Number(offset)]);
 
         return { rows, total, totalSum };
     },

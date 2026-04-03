@@ -197,10 +197,12 @@ const User = {
         let countParams = [...params];
 
         query += ' ORDER BY u.id DESC LIMIT ? OFFSET ?';
-        params.push(parseInt(limit) || 10, parseInt(offset) || 0);
+        const finalLimit = Number.isFinite(parseInt(limit)) ? parseInt(limit) : 10;
+        const finalOffset = Number.isFinite(parseInt(offset)) ? parseInt(offset) : 0;
+        params.push(finalLimit, finalOffset);
 
-        const [rows] = await pool.execute(query, params);
-        const [countResult] = await pool.execute(countQuery, countParams);
+        const [rows] = await pool.query(query, params);
+        const [countResult] = await pool.query(countQuery, countParams);
 
         const calculateShiftHours = (start, end) => {
             if (!start || !end) return "0.0";
@@ -266,7 +268,7 @@ const User = {
 
         query += ' ORDER BY u.id DESC';
 
-        const [rows] = await pool.execute(query, params);
+        const [rows] = await pool.query(query, params);
 
         const calculateShiftHours = (start, end) => {
             if (!start || !end) return "0.0";
@@ -367,7 +369,7 @@ const User = {
     getFilterOptions: async () => {
         const [empTypes] = await pool.execute('SELECT DISTINCT employment_type as label FROM users WHERE employment_type IS NOT NULL AND employment_type != ""');
         const [workModes] = await pool.execute('SELECT DISTINCT work_location as label FROM users WHERE work_location IS NOT NULL AND work_location != ""');
-        
+
         return {
             employmentTypes: empTypes.map(row => ({ id: row.label.toLowerCase(), label: row.label })),
             workModes: workModes.map(row => ({ id: row.label.toLowerCase(), label: row.label }))
