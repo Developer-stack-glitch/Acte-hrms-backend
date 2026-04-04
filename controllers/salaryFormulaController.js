@@ -58,16 +58,16 @@ const salaryFormulaController = {
             const definitions = await getDefinitions(company_id);
             const processSteps = [];
 
-            // 2. Prepare context for evaluation
+            // 2. Prepare context for evaluation - Treating input as Monthly CTC for direct formula testing
+            const ctcMonthly = Number(test_ctc);
             const context = {
-                'CTC': test_ctc / 12
+                'CTC': ctcMonthly,
+                'GROSS': ctcMonthly,
+                'Basic': ctcMonthly * 0.5,
+                'CTC_YEAR': ctcMonthly * 12
             };
 
             try {
-                // Initial setup logs that the user's screenshot has
-                processSteps.push(`Loaded definitions from \`salary_formulas\` and \`salary_components\`.`);
-                processSteps.push(`Created a final unified collection of ${Object.keys(definitions).length} definitions.`);
-
                 const finalResult = evaluateFormula(formula, context, definitions, 0);
 
                 res.json({
@@ -77,6 +77,7 @@ const salaryFormulaController = {
                         `Loaded and keyed definitions from \`salary_formulas\`.`,
                         `Found Variable definitions in \`salary_components\` to process.`,
                         `Created a final unified collection of ${Object.keys(definitions).length} total definitions.`,
+                        `Initial Context: {CTC} = ${ctcMonthly.toFixed(2)} (Sample Input), {CTC_YEAR} = ${(ctcMonthly * 12).toFixed(2)} (Estimated Annual), {GROSS} = ${ctcMonthly.toFixed(2)}, {Basic} = ${(ctcMonthly * 0.5).toFixed(2)}`,
                         `(0) Evaluating formula: \`${formula}\``,
                         `(1) Recursive evaluation handled by the system.`,
                         `Final Result: ${finalResult}`

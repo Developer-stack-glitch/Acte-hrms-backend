@@ -279,8 +279,15 @@ const enrichAttendanceRecord = async (record, shift, permissions = []) => {
         working_day_value = 0.0;
     } else if (status === 'Holiday' || status === 'Week Off') {
         working_day_value = 1.0;
-    } else if (status === 'Absent') {
-        working_day_value = 0.0;
+    } else if (status === 'Absent' || !status) {
+        if (is_week_off) {
+            status = 'Week Off';
+            working_day_value = 1.0;
+        } else {
+            // Check if it's a holiday - we need to fetch holidays here or pass them in
+            // For now, let's at least fix the Week Off issue which is confirmed
+            working_day_value = 0.0;
+        }
     }
 
     return {

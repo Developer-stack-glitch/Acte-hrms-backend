@@ -37,7 +37,16 @@ const createUser = async (req, res) => {
         }
 
 
-        // 3. Prevent duplicate Employee ID or Biometric ID
+        // 3. Validate mandatory fields
+        const mandatoryFields = ['department', 'designation', 'branch', 'shift'];
+        for (const field of mandatoryFields) {
+            if (!userData[field]) {
+                const label = field.charAt(0).toUpperCase() + field.slice(1);
+                return res.status(400).json({ message: `${label} is mandatory.` });
+            }
+        }
+
+        // 4. Prevent duplicate Employee ID or Biometric ID
         if (userData.emp_id) {
             const [existingEmpId] = await pool.execute('SELECT id FROM users WHERE emp_id = ?', [userData.emp_id]);
             if (existingEmpId.length > 0) {
@@ -238,7 +247,16 @@ const updateUser = async (req, res) => {
             });
         }
 
-        // 3. Prevent duplicate Employee ID or Biometric ID (excluding current user)
+        // 3. Validate mandatory fields (only if present in request, to allow partial updates like password/photo)
+        const mandatoryFields = ['department', 'designation', 'branch', 'shift'];
+        for (const field of mandatoryFields) {
+            if (Object.keys(userData).includes(field) && !userData[field]) {
+                const label = field.charAt(0).toUpperCase() + field.slice(1);
+                return res.status(400).json({ message: `${label} is mandatory.` });
+            }
+        }
+
+        // 4. Prevent duplicate Employee ID or Biometric ID (excluding current user)
         if (userData.emp_id) {
             const [existingEmpId] = await pool.execute('SELECT id FROM users WHERE emp_id = ? AND id != ?', [userData.emp_id, id]);
             if (existingEmpId.length > 0) {

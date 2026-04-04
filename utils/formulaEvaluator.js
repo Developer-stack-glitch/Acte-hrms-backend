@@ -43,8 +43,13 @@ const evaluateFormula = (formulaStr, context, definitions, depth = 0) => {
     }
 
     try {
-        // Clean up remaining brackets if any (though regex loop should handle them)
-        const mathExpr = evalString.replace(/\{|\}/g, '');
+        // Clean up remaining brackets if any
+        let mathExpr = evalString.replace(/\{|\}/g, '');
+
+        // Support for percentage sign (e.g. "50%" -> "/100 * 50")
+        // We match a number followed by a % sign and convert it to (Number/100)
+        mathExpr = mathExpr.replace(/([0-9.]+)\s*%/g, '($1/100)');
+
         // eslint-disable-next-line no-eval
         return eval(mathExpr) || 0;
     } catch (e) {

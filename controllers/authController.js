@@ -129,11 +129,9 @@ const resetPassword = asyncHandler(async (req, res) => {
         throw new Error('Invalid or expired OTP');
     }
 
-    // Hash the new password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
 
-    // Update password and clear reset token
     await pool.execute(
         'UPDATE users SET password = ?, reset_token = NULL, reset_token_expiry = NULL WHERE id = ?',
         [hashedPassword, user.id]

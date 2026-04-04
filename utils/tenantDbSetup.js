@@ -667,8 +667,8 @@ const setupTenantDatabase = async (dbName, dbUser, dbPass, companyData) => {
         await tenantPool.execute(`
             CREATE TABLE IF NOT EXISTS company_policies (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                cl_limit DECIMAL(10,2) DEFAULT 1.00,
-                permission_limit DECIMAL(10,2) DEFAULT 0.20,
+                cl_limit DECIMAL(10,2) DEFAULT 0.00,
+                permission_limit DECIMAL(10,2) DEFAULT 0.00,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             )

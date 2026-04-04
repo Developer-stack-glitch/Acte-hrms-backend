@@ -11,8 +11,8 @@ const getCompanyPolicy = asyncHandler(async (req, res) => {
         // Return default values if not set
         return res.status(200).json({
             company_id: companyId,
-            cl_limit: 1.0,
-            permission_limit: 0.2
+            cl_limit: 0.0,
+            permission_limit: 0.0
         });
     }
     res.status(200).json(policy);

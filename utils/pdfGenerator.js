@@ -202,30 +202,33 @@ const generatePayslipPDF = async (data) => {
             </thead>
             <tbody>
                 ${(() => {
-                    const earnings = employee.earnings_breakdown || {
-                        'BASIC': employee.salary || 0,
-                        'HRA': employee.hra || 0,
-                        'CONVEYANCE': employee.conveyance || 0,
-                        'MEDICAL REIM': employee.medical || 0,
-                        'SPECIAL ALLOW': employee.special || 0,
-                        'TRAVEL ALLOW': employee.travel || 0,
-                        'PER DIEM ALLOW': employee.perDiem || 0,
-                        'VARIABLE': employee.variable || 0,
-                        'INCENTIVES': employee.incentives || 0
-                    };
-                    const deductions = employee.deductions_breakdown || {
-                        'ESI': employee.esi || 0,
-                        'IT': employee.it || 0,
-                        'PT': employee.pt || 0,
-                        'PF': employee.epf || 0,
-                        'ER EPFO': employee.employer_epfo || 0,
-                        'VPF': employee.vpf || 0,
-                        'LOP': employee.lop || 0,
-                        'OTHER': employee.other || 0
-                    };
+                    const earnings = { ...(employee.earnings_breakdown || {}) };
+                    const deductions = { ...(employee.deductions_breakdown || {}) };
 
-                    const earnKeys = Object.keys(earnings);
-                    const deductKeys = Object.keys(deductions);
+                    // Always ensure key deduction fields are present if they have values
+                    if (employee.lop > 0) deductions['LOSS OF PAY'] = employee.lop;
+                    if (employee.epf && !deductions['PF'] && !deductions['EPF']) deductions['PF'] = employee.epf;
+                    if (employee.esi && !deductions['ESI']) deductions['ESI'] = employee.esi;
+                    if (employee.pt && !deductions['PT']) deductions['PT'] = employee.pt;
+                    if (employee.it && !deductions['IT'] && !deductions['Income Tax']) deductions['IT'] = employee.it;
+                    if (employee.vpf && !deductions['VPF']) deductions['VPF'] = employee.vpf;
+
+                    // If earnings breakdown is empty, use legacy fields
+                    if (Object.keys(earnings).length === 0) {
+                        earnings['BASIC'] = employee.salary || 0;
+                        earnings['HRA'] = employee.hra || 0;
+                        if (employee.conveyance) earnings['CONVEYANCE'] = employee.conveyance;
+                        if (employee.medical) earnings['MEDICAL REIM'] = employee.medical;
+                        if (employee.special) earnings['SPECIAL ALLOW'] = employee.special;
+                        if (employee.travel) earnings['TRAVEL ALLOW'] = employee.travel;
+                        if (employee.perDiem) earnings['PER DIEM ALLOW'] = employee.perDiem;
+                        if (employee.variable) earnings['VARIABLE'] = employee.variable;
+                        if (employee.incentives) earnings['INCENTIVES'] = employee.incentives;
+                    }
+
+                    // Filter out 0 value items to keep it clean
+                    const earnKeys = Object.keys(earnings).filter(k => earnings[k] !== 0);
+                    const deductKeys = Object.keys(deductions).filter(k => deductions[k] !== 0);
                     const maxRows = Math.max(earnKeys.length, deductKeys.length);
                     
                     let rowsHtml = '';
