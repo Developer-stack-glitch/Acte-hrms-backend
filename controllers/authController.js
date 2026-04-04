@@ -29,6 +29,7 @@ const loginUser = asyncHandler(async (req, res) => {
             team_lead: user.team_lead,
             permissions: permissions || [],
             database: process.env.DB_NAME,
+            is_main_db: true,
             token: generateToken(user.id, staySignedIn),
         });
     } else {
