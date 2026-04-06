@@ -145,6 +145,22 @@ const setupTenantDatabase = async (dbName, dbUser, dbPass, companyData) => {
         `);
 
         await tenantPool.execute(`
+            CREATE TABLE IF NOT EXISTS employment_types (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        await tenantPool.execute(`
+            CREATE TABLE IF NOT EXISTS work_locations (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        await tenantPool.execute(`
             CREATE TABLE IF NOT EXISTS holidays (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 name VARCHAR(255) NOT NULL,
@@ -904,6 +920,17 @@ const setupTenantDatabase = async (dbName, dbUser, dbPass, companyData) => {
             );
             console.log(`Initial welcome notification created for admin ${adminId}`);
         }
+
+        // 12. Seed Dynamic Filters
+        await tenantPool.execute(`
+            INSERT INTO employment_types (name) VALUES 
+            ('Permanent'), ('Contract'), ('Intern'), ('Probation'), ('Notice Period')
+        `);
+        await tenantPool.execute(`
+            INSERT INTO work_locations (name) VALUES 
+            ('On-site'), ('Remote'), ('Hybrid')
+        `);
+        console.log(`Dynamic filters (Employment Type & Work Location) seeded for ${dbName}`);
 
         console.log(`Database ${dbName} setup completed successfully.`);
     } catch (error) {

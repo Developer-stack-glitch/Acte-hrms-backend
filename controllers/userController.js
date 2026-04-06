@@ -1,5 +1,9 @@
-const User = require('../models/userModel');
+const { User, USER_COLUMNS } = require('../models/userModel');
+const SalaryStructure = require('../models/salaryStructureModel');
+const Organization = require('../models/organizationModel');
 const { pool } = require('../Config/dbConfig');
+const ExcelJS = require('exceljs');
+const fs = require('fs');
 
 const createUser = async (req, res) => {
     try {
@@ -317,6 +321,254 @@ const deleteUser = async (req, res) => {
     }
 };
 
+const downloadBulkTemplate = async (req, res) => {
+    try {
+        const { salary_structure_id } = req.query;
+        if (!salary_structure_id) return res.status(400).json({ message: 'Salary structure ID is required' });
+
+        const structure = await SalaryStructure.getById(salary_structure_id);
+        const components = await SalaryStructure.getComponents(salary_structure_id);
+
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Employee Template');
+
+        const baseColumns = [
+            'Employee Name', 'Off Mail ID', 'Emp ID', 'Biometric ID', 'Role', 
+            'Department ID', 'Designation ID', 'Branch ID', 'Shift ID', 
+            'Employment Type ID', 'Work Location ID', 'DOJ (YYYY-MM-DD)', 'DOR (YYYY-MM-DD)',
+            'DOB (YYYY-MM-DD)', 'Gender', 'Per Mail ID', 'Off Contact No', 'Per Contact No',
+            'ESI No', 'PF No', 'Aadhar No', 'PAN No', 'Bank A/C No', 'IFSC Code', 'UAN',
+            'Blood Group', 'Mother Tongue', 'Father/Spouse Name', 'Father/Spouse Contact',
+            'Mother Name', 'Mother Contact', 'Temp Address', 'Perm Address',
+            'Year Gross Salary'
+        ];
+
+        const componentColumns = components.map(c => c.name);
+        const allColumns = [...baseColumns, ...componentColumns];
+
+        worksheet.columns = allColumns.map(col => ({ header: col, key: col, width: 20 }));
+
+        // Add dummy data for first row
+        const dummyRow = {};
+        allColumns.forEach(col => {
+            if (col === 'Employee Name') dummyRow[col] = 'John Doe';
+            else if (col === 'Off Mail ID') dummyRow[col] = 'john@company.com';
+            else if (col === 'Emp ID') dummyRow[col] = 'EMP001';
+            else if (col.includes('Date') || col.includes('DOJ') || col.includes('DOB')) dummyRow[col] = '1995-01-01';
+            else if (['Role', 'Department ID', 'Designation ID', 'Branch ID', 'Shift ID'].includes(col)) dummyRow[col] = '1';
+            else if (col === 'Year Gross Salary') dummyRow[col] = '500000';
+            else dummyRow[col] = '';
+        });
+        worksheet.addRow(dummyRow);
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="Template_${structure.name.replace(/\s+/g, '_')}.xlsx"`);
+
+        await workbook.xlsx.write(res);
+    } catch (error) {
+        res.status(500).json({ message: 'Error generating template', error: error.message });
+    }
+};
+
+const downloadReferenceIds = async (req, res) => {
+    try {
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Reference IDs');
+
+        worksheet.columns = [
+            { header: 'Type', key: 'type', width: 25 },
+            { header: 'ID', key: 'id', width: 10 },
+            { header: 'Name', key: 'name', width: 50 }
+        ];
+
+        const [departments, designations, branches, shifts, structures, roles, employmentTypes, workLocations] = await Promise.all([
+            Organization.getAllDepartments(),
+            Organization.getAllDesignations(),
+            Organization.getAllBranches(),
+            Organization.getAllShifts(),
+            SalaryStructure.getAll(req.user.company),
+            pool.execute('SELECT DISTINCT role FROM role_permissions').then(([rows]) => rows),
+            Organization.getAllEmploymentTypes(),
+            Organization.getAllWorkLocations()
+        ]);
+
+        const addRows = (type, data, nameKey = 'name') => {
+            if (!data || data.length === 0) return;
+            data.forEach(item => {
+                worksheet.addRow({ 
+                    type, 
+                    id: item.id || item.role || item.name || 'N/A', 
+                    name: item[nameKey] || item.role || item.name || 'N/A'
+                });
+            });
+            worksheet.addRow({}); // Empty row
+        };
+
+        addRows('Shift', shifts);
+        addRows('Department', departments, 'department_name');
+        addRows('Designation', designations);
+        addRows('Branch', branches);
+        addRows('Salary Structure', structures);
+        addRows('Role', roles);
+        addRows('Employment Type', employmentTypes);
+        addRows('Work Location', workLocations);
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename="User_Assignment_Reference_IDs.xlsx"');
+
+        await workbook.xlsx.write(res);
+    } catch (error) {
+        res.status(500).json({ message: 'Error generating reference IDs', error: error.message });
+    }
+};
+
+const bulkUploadUsers = async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+        const { salary_structure_id } = req.body;
+
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.readFile(req.file.path);
+        const worksheet = workbook.getWorksheet(1);
+
+        const rows = [];
+        // Helper to extract plain value from ExcelJS cell (handles hyperlinks, rich text, etc.)
+        const getCellValue = (value) => {
+            if (value === null || value === undefined) return null;
+            if (typeof value === 'object') {
+                // Hyperlink: { text: '...', hyperlink: '...' }
+                if (value.text !== undefined) return value.text;
+                // Rich text: { richText: [{ text: '...' }, ...] }
+                if (value.richText) return value.richText.map(r => r.text).join('');
+                // Date object
+                if (value instanceof Date) {
+                    return value.toISOString().split('T')[0]; // YYYY-MM-DD
+                }
+                // Formula result
+                if (value.result !== undefined) return value.result;
+                return String(value);
+            }
+            return value;
+        };
+
+        const headers = [];
+        worksheet.getRow(1).eachCell({ includeEmpty: true }, (cell, colNumber) => {
+            headers[colNumber] = getCellValue(cell.value);
+        });
+
+        worksheet.eachRow((row, rowNumber) => {
+            if (rowNumber === 1) return;
+            const rowData = {};
+            row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+                rowData[headers[colNumber]] = getCellValue(cell.value);
+            });
+            rows.push(rowData);
+        });
+
+        const mapping = {
+            'Employee Name': 'employee_name',
+            'Off Mail ID': 'off_mail_id',
+            'Emp ID': 'emp_id',
+            'Biometric ID': 'biometric_id',
+            'Role': 'role',
+            'Department ID': 'department',
+            'Designation ID': 'designation',
+            'Branch ID': 'branch',
+            'Shift ID': 'shift',
+            'Employment Type ID': 'employment_type',
+            'Work Location ID': 'work_location',
+            'DOJ (YYYY-MM-DD)': 'doj',
+            'DOR (YYYY-MM-DD)': 'dor',
+            'DOB (YYYY-MM-DD)': 'dob',
+            'Gender': 'gender',
+            'Per Mail ID': 'per_mail_id',
+            'Off Contact No': 'off_contact_no',
+            'Per Contact No': 'per_contact_no',
+            'ESI No': 'esi',
+            'PF No': 'pf',
+            'Aadhar No': 'aadhar',
+            'PAN No': 'pan',
+            'Bank A/C No': 'bank_ac_no',
+            'IFSC Code': 'ifsc',
+            'UAN': 'uan',
+            'Blood Group': 'blood_group',
+            'Mother Tongue': 'mother_tongue',
+            'Father/Spouse Name': 'father_spouse_name',
+            'Father/Spouse Contact': 'father_spouse_contact',
+            'Mother Name': 'mother_name',
+            'Mother Contact': 'mother_contact',
+            'Temp Address': 'temp_address',
+            'Perm Address': 'perm_address',
+            'Year Gross Salary': 'year_gross_salary'
+        };
+
+        const summary = { success: 0, failed: 0, errors: [] };
+
+        for (const rowData of rows) {
+            try {
+                const userData = {};
+                // dynamic mapping (if any headers match USER_COLUMNS)
+                Object.keys(rowData).forEach(header => {
+                    let value = rowData[header];
+                    // Sanitize numeric/ID fields if they have 'N/A'
+                    if (value === 'N/A' || value === '') value = null;
+                    
+                    const normalizedHeader = header.toLowerCase().replace(/\s+/g, '_');
+                    if (USER_COLUMNS.includes(normalizedHeader) && userData[normalizedHeader] === undefined) {
+                        userData[normalizedHeader] = value;
+                    }
+                });
+
+                // Set static mapping after dynamic to override if necessary, also sanitizing
+                Object.keys(mapping).forEach(header => {
+                    let value = rowData[header];
+                    if (value === 'N/A' || value === '') value = null;
+                    
+                    if (value !== undefined) {
+                        userData[mapping[header]] = value;
+                    }
+                });
+
+                // Auto-set company
+                userData.company = req.user.company;
+                userData.password = 'password123';
+                if (salary_structure_id) {
+                    userData.salary_structure_id = salary_structure_id;
+                }
+                if (!userData.employee_name || !userData.off_mail_id) {
+                    throw new Error(`Missing mandatory fields for row: ${JSON.stringify(rowData)}`);
+                }
+
+                userData.name = userData.employee_name;
+                userData.email = userData.off_mail_id;
+
+                await User.create(userData);
+                summary.success++;
+            } catch (err) {
+                summary.failed++;
+                summary.errors.push({ row: rowData, message: err.message });
+            }
+        }
+
+        // Cleanup: remove standard file from disk
+        if (req.file && fs.existsSync(req.file.path)) {
+            fs.unlinkSync(req.file.path);
+        }
+
+        res.status(200).json({ 
+            message: `Bulk upload completed. ${summary.success} successful, ${summary.failed} failed.`,
+            summary 
+        });
+
+    } catch (error) {
+        console.error('Bulk upload error:', error);
+        if (req.file && fs.existsSync(req.file.path)) {
+            fs.unlinkSync(req.file.path);
+        }
+        res.status(500).json({ message: 'Error processing bulk upload', error: error.message });
+    }
+};
+
 module.exports = {
     createUser,
     getUsers,
@@ -325,5 +577,8 @@ module.exports = {
     updateUser,
     deleteUser,
     getMilestones,
-    getUserAttendance
+    getUserAttendance,
+    downloadBulkTemplate,
+    downloadReferenceIds,
+    bulkUploadUsers
 };

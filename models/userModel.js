@@ -49,13 +49,17 @@ const User = {
                 s.name as shift_name,
                 s.start_time as shift_start,
                 s.end_time as shift_end,
-                c.name as company_name
+                c.name as company_name,
+                et.name as employment_type_name,
+                wl.name as work_location_name
             FROM users u
             LEFT JOIN departments d ON u.department = d.id
             LEFT JOIN designations des ON u.designation = des.id
             LEFT JOIN branches b ON u.branch = b.id
             LEFT JOIN shifts s ON u.shift = s.id
             LEFT JOIN companies c ON u.company = c.id
+            LEFT JOIN employment_types et ON u.employment_type = et.id
+            LEFT JOIN work_locations wl ON u.work_location = wl.id
             WHERE u.id = ?
         `, [id || null]);
 
@@ -76,7 +80,9 @@ const User = {
             designation_name: rows[0].designation_name || rows[0].designation,
             branch_name: rows[0].branch_name || rows[0].branch,
             shift_name: rows[0].shift_name ? `${rows[0].shift_name} (${rows[0].shift_start} - ${rows[0].shift_end})` : rows[0].shift,
-            shift_hours: calculateShiftHours(rows[0].shift_start, rows[0].shift_end)
+            shift_hours: calculateShiftHours(rows[0].shift_start, rows[0].shift_end),
+            employment_type_name: rows[0].employment_type_name || rows[0].employment_type,
+            work_location_name: rows[0].work_location_name || rows[0].work_location
         };
     },
 
@@ -103,13 +109,17 @@ const User = {
                 s.name as shift_name,
                 s.start_time as shift_start,
                 s.end_time as shift_end,
-                c.name as company_name
+                c.name as company_name,
+                et.name as employment_type_name,
+                wl.name as work_location_name
             FROM users u
             LEFT JOIN departments d ON u.department = d.id
             LEFT JOIN designations des ON u.designation = des.id
             LEFT JOIN branches b ON u.branch = b.id
             LEFT JOIN shifts s ON u.shift = s.id
             LEFT JOIN companies c ON u.company = c.id
+            LEFT JOIN employment_types et ON u.employment_type = et.id
+            LEFT JOIN work_locations wl ON u.work_location = wl.id
             WHERE u.role != 'superadmin' 
             ORDER BY u.id DESC
         `);
@@ -129,7 +139,9 @@ const User = {
             designation_name: row.designation_name || row.designation,
             branch_name: row.branch_name || row.branch,
             shift_name: row.shift_name ? `${row.shift_name} (${row.shift_start} - ${row.shift_end})` : row.shift,
-            shift_hours: calculateShiftHours(row.shift_start, row.shift_end)
+            shift_hours: calculateShiftHours(row.shift_start, row.shift_end),
+            employment_type_name: row.employment_type_name || row.employment_type,
+            work_location_name: row.work_location_name || row.work_location
         }));
     },
 
@@ -157,13 +169,17 @@ const User = {
                 s.name as shift_name,
                 s.start_time as shift_start,
                 s.end_time as shift_end,
-                c.name as company_name
+                c.name as company_name,
+                et.name as employment_type_name,
+                wl.name as work_location_name
             FROM users u
             LEFT JOIN departments d ON u.department = d.id
             LEFT JOIN designations des ON u.designation = des.id
             LEFT JOIN branches b ON u.branch = b.id
             LEFT JOIN shifts s ON u.shift = s.id
             LEFT JOIN companies c ON u.company = c.id
+            LEFT JOIN employment_types et ON u.employment_type = et.id
+            LEFT JOIN work_locations wl ON u.work_location = wl.id
         `;
         let countQuery = 'SELECT COUNT(*) as total FROM users u';
         let conditions = ["u.role != 'superadmin'"];
@@ -219,7 +235,9 @@ const User = {
             designation_name: row.designation_name || row.designation,
             branch_name: row.branch_name || row.branch,
             shift_name: row.shift_name ? `${row.shift_name} (${row.shift_start} - ${row.shift_end})` : row.shift,
-            shift_hours: calculateShiftHours(row.shift_start, row.shift_end)
+            shift_hours: calculateShiftHours(row.shift_start, row.shift_end),
+            employment_type_name: row.employment_type_name || row.employment_type,
+            work_location_name: row.work_location_name || row.work_location
         }));
 
         return {
@@ -324,7 +342,7 @@ const User = {
         }
 
         const query = `INSERT INTO users (${fields.join(', ')}) VALUES (${placeholders.join(', ')})`;
-        const [result] = await pool.execute(query, values);
+        const [result] = await pool.query(query, values);
         return result.insertId;
     },
 
@@ -355,9 +373,9 @@ const User = {
 
         if (fields.length === 0) return 0;
 
-        values.push(id || null);
         const query = `UPDATE users SET ${fields.join(', ')} WHERE id = ?`;
-        const [result] = await pool.execute(query, values);
+        values.push(id);
+        const [result] = await pool.query(query, values);
         return result.affectedRows;
     },
 
@@ -377,4 +395,4 @@ const User = {
     }
 };
 
-module.exports = User;
+module.exports = { User, USER_COLUMNS };

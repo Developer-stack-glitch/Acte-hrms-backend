@@ -288,6 +288,24 @@ const getDepartments = async (req, res) => {
     }
 };
 
+const getEmploymentTypes = async (req, res) => {
+    try {
+        const types = await Organization.getAllEmploymentTypes();
+        res.status(200).json(types);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching employment types', error: error.message });
+    }
+};
+
+const getWorkLocations = async (req, res) => {
+    try {
+        const locations = await Organization.getAllWorkLocations();
+        res.status(200).json(locations);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching work locations', error: error.message });
+    }
+};
+
 const getMetadata = async (req, res) => {
     try {
         const metadata = await Organization.getMetadata();
@@ -313,5 +331,7 @@ module.exports = {
     getShifts,
     createDepartment,
     getDepartments,
-    getMetadata
+    getMetadata,
+    getEmploymentTypes,
+    getWorkLocations
 };

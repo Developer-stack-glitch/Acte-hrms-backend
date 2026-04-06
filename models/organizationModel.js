@@ -200,11 +200,23 @@ class Organization {
         }
     }
 
+    static async getAllEmploymentTypes() {
+        const [rows] = await pool.execute('SELECT * FROM employment_types ORDER BY name ASC');
+        return rows;
+    }
+
+    static async getAllWorkLocations() {
+        const [rows] = await pool.execute('SELECT * FROM work_locations ORDER BY name ASC');
+        return rows;
+    }
+
     static async getMetadata() {
         const [branches] = await pool.execute('SELECT * FROM branches');
         const [departments] = await pool.execute('SELECT * FROM departments');
         const [shifts] = await pool.execute('SELECT * FROM shifts');
-        return { branches, departments, shifts };
+        const [employmentTypes] = await pool.execute('SELECT * FROM employment_types');
+        const [workLocations] = await pool.execute('SELECT * FROM work_locations');
+        return { branches, departments, shifts, employmentTypes, workLocations };
     }
 }
 

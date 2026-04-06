@@ -70,6 +70,9 @@ router.get('/users/me', protect, userController.getProfile);
 router.post('/users/', protect, upload.fields(documentFields), userController.createUser);
 router.get('/users/milestones', protect, userController.getMilestones);
 router.get('/users/user-attendance', protect, userController.getUserAttendance);
+router.get('/users/bulk-template', protect, userController.downloadBulkTemplate);
+router.get('/users/reference-ids', protect, userController.downloadReferenceIds);
+router.post('/users/bulk-upload', protect, upload.single('file'), userController.bulkUploadUsers);
 router.get('/users/', protect, userController.getUsers);
 router.get('/users/:id', protect, userController.getUserById);
 router.put('/users/:id', protect, upload.fields(documentFields), userController.updateUser);
@@ -89,8 +92,10 @@ router.get('/organization/designations', orgController.getDesignations);
 router.post('/organization/shifts', orgController.createShift);
 router.get('/organization/shifts', orgController.getShifts);
 router.post('/organization/departments', orgController.createDepartment);
-router.get('/organization/departments', orgController.getDepartments);
-router.get('/organization/metadata', orgController.getMetadata);
+router.get('/organization/departments', protect, orgController.getDepartments);
+router.get('/organization/employment-types', protect, orgController.getEmploymentTypes);
+router.get('/organization/work-locations', protect, orgController.getWorkLocations);
+router.get('/organization/metadata', protect, orgController.getMetadata);
 
 // --- Attendance Routes ---
 router.post('/attendance/', protect, attendanceController.saveAttendance);
