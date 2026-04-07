@@ -345,7 +345,9 @@ const getAttendanceDataInternal = async (startDate, endDate, userId = null, user
 
     let finalAttendance = [];
 
-    const users = await require('../models/userModel').getAll();
+    const { User } = require('../models/userModel');
+    const users = await User.getAll();
+
     const userMap = {};
     users.forEach(u => {
         const fetchId = u.biometric_id || u.emp_id;

@@ -40,6 +40,13 @@ const createUser = async (req, res) => {
             });
         }
 
+        // Resolve numeric role ID to string name if needed
+        if (userData.role && !isNaN(userData.role)) {
+            const [roleRows] = await pool.execute('SELECT role FROM role_permissions WHERE id = ?', [userData.role]);
+            if (roleRows.length > 0) {
+                userData.role = roleRows[0].role;
+            }
+        }
 
         // 3. Validate mandatory fields
         const mandatoryFields = ['department', 'designation', 'branch', 'shift'];
@@ -251,6 +258,14 @@ const updateUser = async (req, res) => {
             });
         }
 
+        // Resolve numeric role ID to string name if needed
+        if (userData.role && !isNaN(userData.role)) {
+            const [roleRows] = await pool.execute('SELECT role FROM role_permissions WHERE id = ?', [userData.role]);
+            if (roleRows.length > 0) {
+                userData.role = roleRows[0].role;
+            }
+        }
+
         // 3. Validate mandatory fields (only if present in request, to allow partial updates like password/photo)
         const mandatoryFields = ['department', 'designation', 'branch', 'shift'];
         for (const field of mandatoryFields) {
@@ -333,20 +348,39 @@ const downloadBulkTemplate = async (req, res) => {
         const worksheet = workbook.addWorksheet('Employee Template');
 
         const baseColumns = [
-            'Employee Name', 'Off Mail ID', 'Emp ID', 'Biometric ID', 'Role', 
+            'Employee Name', 'Off Mail ID', 'Emp ID', 'Biometric ID', 'Role ID', 
             'Department ID', 'Designation ID', 'Branch ID', 'Shift ID', 
-            'Employment Type ID', 'Work Location ID', 'DOJ (YYYY-MM-DD)', 'DOR (YYYY-MM-DD)',
-            'DOB (YYYY-MM-DD)', 'Gender', 'Per Mail ID', 'Off Contact No', 'Per Contact No',
+            'Employment Type ID', 'Work Location ID', 'DOJ (DD-MM-YYYY)', 'DOR (DD-MM-YYYY)',
+            'DOB (DD-MM-YYYY)', 'Gender', 'Per Mail ID', 'Off Contact No', 'Per Contact No',
             'ESI No', 'PF No', 'Aadhar No', 'PAN No', 'Bank A/C No', 'IFSC Code', 'UAN',
             'Blood Group', 'Mother Tongue', 'Father/Spouse Name', 'Father/Spouse Contact',
             'Mother Name', 'Mother Contact', 'Temp Address', 'Perm Address',
-            'Year Gross Salary'
+            'Year Gross Salary', 'Has Work Experience? (Yes/No)', 'Allow Web Clock-In (Yes/No)', 'Team Lead (Yes/No)'
         ];
 
         const componentColumns = components.map(c => c.name);
         const allColumns = [...baseColumns, ...componentColumns];
 
-        worksheet.columns = allColumns.map(col => ({ header: col, key: col, width: 20 }));
+        worksheet.columns = allColumns.map(col => ({ header: col, key: col, width: 25 }));
+
+        // Style the header row
+        const headerRow = worksheet.getRow(1);
+        headerRow.height = 30;
+        headerRow.eachCell((cell) => {
+            cell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+            cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FF2F75B5' }
+            };
+            cell.alignment = { vertical: 'middle', horizontal: 'center' };
+            cell.border = {
+                top: { style: 'thin', color: { argb: 'FFDBE5F1' } },
+                left: { style: 'thin', color: { argb: 'FFDBE5F1' } },
+                bottom: { style: 'thin', color: { argb: 'FFDBE5F1' } },
+                right: { style: 'thin', color: { argb: 'FFDBE5F1' } }
+            };
+        });
 
         // Add dummy data for first row
         const dummyRow = {};
@@ -354,12 +388,42 @@ const downloadBulkTemplate = async (req, res) => {
             if (col === 'Employee Name') dummyRow[col] = 'John Doe';
             else if (col === 'Off Mail ID') dummyRow[col] = 'john@company.com';
             else if (col === 'Emp ID') dummyRow[col] = 'EMP001';
-            else if (col.includes('Date') || col.includes('DOJ') || col.includes('DOB')) dummyRow[col] = '1995-01-01';
-            else if (['Role', 'Department ID', 'Designation ID', 'Branch ID', 'Shift ID'].includes(col)) dummyRow[col] = '1';
+            else if (col.includes('Date') || col.includes('DOJ') || col.includes('DOR') || col.includes('DOB')) dummyRow[col] = '01-01-1995';
+            else if (['Role ID', 'Department ID', 'Designation ID', 'Branch ID', 'Shift ID'].includes(col)) dummyRow[col] = '1';
             else if (col === 'Year Gross Salary') dummyRow[col] = '500000';
+            else if (['Has Work Experience? (Yes/No)', 'Allow Web Clock-In (Yes/No)', 'Team Lead (Yes/No)'].includes(col)) dummyRow[col] = 'No';
             else dummyRow[col] = '';
         });
-        worksheet.addRow(dummyRow);
+        const dummyRowInstance = worksheet.addRow(dummyRow);
+
+        // Add data validation (dropdowns) for Yes/No columns
+        const yesNoColumns = [
+            allColumns.indexOf('Has Work Experience? (Yes/No)') + 1,
+            allColumns.indexOf('Allow Web Clock-In (Yes/No)') + 1,
+            allColumns.indexOf('Team Lead (Yes/No)') + 1
+        ];
+
+        yesNoColumns.forEach(colIndex => {
+            if (colIndex > 0) {
+                const colLetter = worksheet.getColumn(colIndex).letter;
+                // Apply validation to 100 rows
+                for (let i = 2; i <= 100; i++) {
+                    worksheet.getCell(`${colLetter}${i}`).dataValidation = {
+                        type: 'list',
+                        allowBlank: true,
+                        formulae: ['"Yes,No"']
+                    };
+                }
+            }
+        });
+        dummyRowInstance.height = 20;
+        dummyRowInstance.eachCell((cell) => {
+            cell.font = { name: 'Segoe UI', size: 10 };
+            cell.alignment = { vertical: 'middle' };
+            cell.border = {
+                around: { style: 'thin', color: { argb: 'FFD9D9D9' } }
+            };
+        });
 
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', `attachment; filename="Template_${structure.name.replace(/\s+/g, '_')}.xlsx"`);
@@ -377,9 +441,22 @@ const downloadReferenceIds = async (req, res) => {
 
         worksheet.columns = [
             { header: 'Type', key: 'type', width: 25 },
-            { header: 'ID', key: 'id', width: 10 },
+            { header: 'ID', key: 'id', width: 12 },
             { header: 'Name', key: 'name', width: 50 }
         ];
+
+        // Style the header row
+        const headerRow = worksheet.getRow(1);
+        headerRow.height = 30;
+        headerRow.eachCell((cell) => {
+            cell.font = { name: 'Segoe UI', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+            cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FF44546A' }
+            };
+            cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        });
 
         const [departments, designations, branches, shifts, structures, roles, employmentTypes, workLocations] = await Promise.all([
             Organization.getAllDepartments(),
@@ -387,18 +464,38 @@ const downloadReferenceIds = async (req, res) => {
             Organization.getAllBranches(),
             Organization.getAllShifts(),
             SalaryStructure.getAll(req.user.company),
-            pool.execute('SELECT DISTINCT role FROM role_permissions').then(([rows]) => rows),
+            pool.execute('SELECT id, role FROM role_permissions').then(([rows]) => rows),
             Organization.getAllEmploymentTypes(),
             Organization.getAllWorkLocations()
         ]);
 
         const addRows = (type, data, nameKey = 'name') => {
             if (!data || data.length === 0) return;
+            
+            // Add a sub-header row for each section
+            const subHeader = worksheet.addRow({ type: type.toUpperCase(), id: '', name: '' });
+            subHeader.height = 25;
+            subHeader.getCell(1).font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FF1F4E78' } };
+            subHeader.getCell(1).fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFDEEAF6' }
+            };
+            worksheet.mergeCells(`A${subHeader.number}:C${subHeader.number}`);
+
             data.forEach(item => {
-                worksheet.addRow({ 
+                const row = worksheet.addRow({ 
                     type, 
                     id: item.id || item.role || item.name || 'N/A', 
                     name: item[nameKey] || item.role || item.name || 'N/A'
+                });
+                row.height = 20;
+                row.eachCell((cell) => {
+                    cell.font = { name: 'Segoe UI', size: 10 };
+                    cell.alignment = { vertical: 'middle' };
+                    cell.border = {
+                        around: { style: 'thin', color: { argb: 'FFD9D9D9' } }
+                    };
                 });
             });
             worksheet.addRow({}); // Empty row
@@ -409,7 +506,7 @@ const downloadReferenceIds = async (req, res) => {
         addRows('Designation', designations);
         addRows('Branch', branches);
         addRows('Salary Structure', structures);
-        addRows('Role', roles);
+        addRows('Role ID', roles);
         addRows('Employment Type', employmentTypes);
         addRows('Work Location', workLocations);
 
@@ -432,6 +529,35 @@ const bulkUploadUsers = async (req, res) => {
         const worksheet = workbook.getWorksheet(1);
 
         const rows = [];
+        const [rolesData, deptsData, desigsData, branchesData, shiftsData, empTypesData, workModesData] = await Promise.all([
+            pool.execute('SELECT id, role FROM role_permissions').then(([rows]) => rows),
+            pool.execute('SELECT id, name FROM departments').then(([rows]) => rows),
+            pool.execute('SELECT id, name FROM designations').then(([rows]) => rows),
+            pool.execute('SELECT id, name FROM branches').then(([rows]) => rows),
+            pool.execute('SELECT id, name, start_time, end_time FROM shifts').then(([rows]) => rows),
+            pool.execute('SELECT id, name FROM employment_types').then(([rows]) => rows),
+            pool.execute('SELECT id, name FROM work_locations').then(([rows]) => rows)
+        ]);
+
+        const createLookup = (data, nameKey = 'name') => {
+            const idMap = {};
+            const nameToIdMap = {};
+            data.forEach(item => {
+                const id = item.id;
+                const name = (item[nameKey] || item.role || '').toString().toLowerCase().trim();
+                idMap[id] = item.role || item[nameKey] || name;
+                if (name) nameToIdMap[name] = id;
+            });
+            return { idMap, nameToIdMap };
+        };
+
+        const roleLookup = createLookup(rolesData, 'role');
+        const deptLookup = createLookup(deptsData, 'name');
+        const desigLookup = createLookup(desigsData, 'name');
+        const branchLookup = createLookup(branchesData, 'name');
+        const shiftLookup = createLookup(shiftsData, 'name');
+        const empTypeLookup = createLookup(empTypesData, 'name');
+        const workModeLookup = createLookup(workModesData, 'name');
         // Helper to extract plain value from ExcelJS cell (handles hyperlinks, rich text, etc.)
         const getCellValue = (value) => {
             if (value === null || value === undefined) return null;
@@ -470,16 +596,16 @@ const bulkUploadUsers = async (req, res) => {
             'Off Mail ID': 'off_mail_id',
             'Emp ID': 'emp_id',
             'Biometric ID': 'biometric_id',
-            'Role': 'role',
+            'Role ID': 'role',
             'Department ID': 'department',
             'Designation ID': 'designation',
             'Branch ID': 'branch',
             'Shift ID': 'shift',
             'Employment Type ID': 'employment_type',
             'Work Location ID': 'work_location',
-            'DOJ (YYYY-MM-DD)': 'doj',
-            'DOR (YYYY-MM-DD)': 'dor',
-            'DOB (YYYY-MM-DD)': 'dob',
+            'DOJ (DD-MM-YYYY)': 'doj',
+            'DOR (DD-MM-YYYY)': 'dor',
+            'DOB (DD-MM-YYYY)': 'dob',
             'Gender': 'gender',
             'Per Mail ID': 'per_mail_id',
             'Off Contact No': 'off_contact_no',
@@ -499,7 +625,10 @@ const bulkUploadUsers = async (req, res) => {
             'Mother Contact': 'mother_contact',
             'Temp Address': 'temp_address',
             'Perm Address': 'perm_address',
-            'Year Gross Salary': 'year_gross_salary'
+            'Year Gross Salary': 'year_gross_salary',
+            'Has Work Experience? (Yes/No)': 'is_experienced',
+            'Allow Web Clock-In (Yes/No)': 'web_clock_in_allowed',
+            'Team Lead (Yes/No)': 'team_lead'
         };
 
         const summary = { success: 0, failed: 0, errors: [] };
@@ -524,6 +653,24 @@ const bulkUploadUsers = async (req, res) => {
                     let value = rowData[header];
                     if (value === 'N/A' || value === '') value = null;
                     
+                    // Specific parsing for date fields to ensure YYYY-MM-DD for DB
+                    if (header.includes('DD-MM-YYYY') && value) {
+                        const dateStr = String(value).trim();
+                        if (dateStr.includes('-')) {
+                            const parts = dateStr.split('-');
+                            if (parts.length === 3 && parts[0].length <= 2) {
+                                // Convert DD-MM-YYYY to YYYY-MM-DD
+                                value = `${parts[2]}-${parts[1]}-${parts[0]}`;
+                            }
+                        } else if (dateStr.includes('/')) {
+                            const parts = dateStr.split('/');
+                            if (parts.length === 3 && parts[0].length <= 2) {
+                                // Convert DD/MM/YYYY to YYYY-MM-DD
+                                value = `${parts[2]}-${parts[1]}-${parts[0]}`;
+                            }
+                        }
+                    }
+
                     if (value !== undefined) {
                         userData[mapping[header]] = value;
                     }
@@ -538,6 +685,41 @@ const bulkUploadUsers = async (req, res) => {
                 if (!userData.employee_name || !userData.off_mail_id) {
                     throw new Error(`Missing mandatory fields for row: ${JSON.stringify(rowData)}`);
                 }
+
+                // 1. Resolve role (ID or Name)
+                if (userData.role) {
+                    const roleVal = userData.role.toString().toLowerCase().trim();
+                    if (roleLookup.idMap[userData.role]) {
+                        userData.role = roleLookup.idMap[userData.role];
+                    } else if (roleLookup.nameToIdMap[roleVal]) {
+                        userData.role = roleLookup.idMap[roleLookup.nameToIdMap[roleVal]];
+                    }
+                }
+
+                // 2. Resolve organizational units (Ensure they are IDs)
+                const resolveToId = (field, lookup) => {
+                    if (!userData[field]) return;
+                    const val = userData[field].toString().toLowerCase().trim();
+                    if (lookup.idMap[userData[field]]) {
+                        // Already a valid ID
+                        return;
+                    } else if (lookup.nameToIdMap[val]) {
+                        // It was a Name, convert to ID
+                        userData[field] = lookup.nameToIdMap[val];
+                    }
+                };
+
+                resolveToId('department', deptLookup);
+                resolveToId('designation', desigLookup);
+                resolveToId('branch', branchLookup);
+                resolveToId('shift', shiftLookup);
+                resolveToId('employment_type', empTypeLookup);
+                resolveToId('work_location', workModeLookup);
+
+                // Convert Yes/No to DB format
+                userData.is_experienced = userData.is_experienced === 'Yes' ? 1 : 0;
+                userData.web_clock_in_allowed = userData.web_clock_in_allowed === 'Yes' ? 1 : 0;
+                userData.team_lead = userData.team_lead === 'Yes' ? 'yes' : 'no';
 
                 userData.name = userData.employee_name;
                 userData.email = userData.off_mail_id;

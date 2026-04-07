@@ -1,5 +1,5 @@
 const Organization = require('../models/organizationModel');
-const User = require('../models/userModel');
+const { User } = require('../models/userModel');
 const { setupTenantDatabase } = require('../utils/tenantDbSetup');
 const { getTenantPool } = require('../Config/dbConfig');
 

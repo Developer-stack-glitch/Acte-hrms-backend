@@ -1,5 +1,5 @@
 const PayrollRun = require('../models/payrollRunModel');
-const User = require('../models/userModel');
+const { User } = require('../models/userModel');
 const Attendance = require('../models/attendanceModel');
 const Holiday = require('../models/holidayModel');
 const CompanyWeekOff = require('../models/companyWeekoffModel');
