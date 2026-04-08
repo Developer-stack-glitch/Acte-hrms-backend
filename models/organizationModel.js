@@ -24,6 +24,7 @@ class Organization {
         query += ' WHERE id = ?';
         params.push(id || null);
 
+        console.log('Updating company:', { id, logo: logo || 'No change' });
         await pool.execute(query, params);
     }
 

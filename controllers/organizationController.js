@@ -13,7 +13,7 @@ const createCompany = async (req, res) => {
 
         const data = { ...req.body };
         if (req.files && req.files.logo) {
-            data.logo = req.files.logo[0].path;
+            data.logo = req.files.logo[0].path.replace(/\\/g, '/');
         }
 
         // 1. Create company in main database
@@ -91,7 +91,7 @@ const updateCompany = async (req, res) => {
 
         const data = { ...req.body };
         if (req.files && req.files.logo) {
-            data.logo = req.files.logo[0].path;
+            data.logo = req.files.logo[0].path.replace(/\\/g, '/');
         }
 
         await Organization.updateCompany(id, data);
